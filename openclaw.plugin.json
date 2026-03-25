@@ -1,0 +1,84 @@
+{
+  "id": "byteplus-sandbox",
+  "name": "BytePlus Volcengine Sandbox",
+  "description": "Volcengine cloud container sandbox backend for OpenClaw agents. Provisions ECS instances, connects via SSH, and mirrors the workspace for secure code execution.",
+  "capabilityTags": ["sandbox"],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "accessKeyId": {
+        "type": "string",
+        "description": "Volcengine Access Key ID"
+      },
+      "secretAccessKey": {
+        "type": "string",
+        "description": "Volcengine Secret Access Key"
+      },
+      "region": {
+        "type": "string",
+        "default": "cn-beijing",
+        "description": "Volcengine region (e.g. cn-beijing, cn-shanghai)"
+      },
+      "image": {
+        "type": "string",
+        "description": "Container/AMI image ID or name for sandbox instances (e.g. cr.volces.com/my-org/sandbox:latest)"
+      },
+      "instanceType": {
+        "type": "string",
+        "default": "ecs.c3i.large",
+        "description": "ECS instance type"
+      },
+      "vpcId": {
+        "type": "string",
+        "description": "VPC ID for the sandbox instance (required for ECS)"
+      },
+      "subnetId": {
+        "type": "string",
+        "description": "Subnet ID for the sandbox instance (required for ECS)"
+      },
+      "securityGroupId": {
+        "type": "string",
+        "description": "Security group ID (must allow inbound SSH on port 22)"
+      },
+      "keyPairName": {
+        "type": "string",
+        "description": "Pre-created ECS key pair name; public key must be registered in Volcengine console"
+      },
+      "sshPrivateKey": {
+        "type": "string",
+        "description": "PEM-encoded private key matching keyPairName, used for SSH authentication"
+      },
+      "sshUser": {
+        "type": "string",
+        "default": "root",
+        "description": "SSH login user inside the sandbox instance"
+      },
+      "remoteWorkspaceDir": {
+        "type": "string",
+        "default": "/workspace",
+        "description": "Remote workspace directory path on the sandbox instance"
+      },
+      "containerPrefix": {
+        "type": "string",
+        "default": "openclaw-sandbox",
+        "description": "Prefix for instance names created by this plugin"
+      },
+      "timeoutSeconds": {
+        "type": "number",
+        "default": 180,
+        "description": "Timeout in seconds for instance creation to reach Running state"
+      },
+      "idleHours": {
+        "type": "number",
+        "default": 2,
+        "description": "Delete instances idle for this many hours (0 = disabled)"
+      },
+      "maxAgeDays": {
+        "type": "number",
+        "default": 7,
+        "description": "Delete instances older than this many days (0 = disabled)"
+      }
+    },
+    "required": ["accessKeyId", "secretAccessKey", "image", "vpcId", "subnetId", "securityGroupId", "keyPairName", "sshPrivateKey"]
+  }
+}

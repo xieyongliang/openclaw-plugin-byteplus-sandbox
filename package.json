@@ -1,0 +1,51 @@
+{
+  "name": "openclaw-plugin-byteplus-sandbox",
+  "version": "0.1.0",
+  "description": "OpenClaw plugin for BytePlus/Volcengine cloud sandbox backend — provisions and manages cloud container instances for agent code execution.",
+  "type": "module",
+  "license": "MIT",
+  "author": "ByteDance",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nicepkg/openclaw-plugin-byteplus-sandbox.git"
+  },
+  "homepage": "https://github.com/nicepkg/openclaw-plugin-byteplus-sandbox#readme",
+  "bugs": {
+    "url": "https://github.com/nicepkg/openclaw-plugin-byteplus-sandbox/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "byteplus",
+    "volcengine",
+    "sandbox",
+    "cloud-sandbox",
+    "ecs",
+    "code-execution"
+  ],
+  "files": [
+    "index.ts",
+    "src/**/*.ts",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "openclaw": ">=2026.3.22"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "install": {
+      "npmSpec": "openclaw-plugin-byteplus-sandbox",
+      "defaultChoice": "npm"
+    }
+  }
+}
