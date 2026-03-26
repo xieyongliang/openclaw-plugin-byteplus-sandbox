@@ -1,8 +1,7 @@
 /**
  * VeFaaS sandbox lifecycle — create and kill sandbox instances.
  *
- * Direct port of openclaw-dev/extensions/volcengine-cloud-sandbox/lifecycle.ts
- * Uses Volcengine Signature V4 (HMAC-SHA256, POST with JSON body).
+ * Uses BytePlus API Signature V4 (HMAC-SHA256, POST with JSON body).
  *
  * API: vefaas service, version 2024-06-06
  */
@@ -12,7 +11,7 @@ import type { VeFaaSCredentials } from "./config.js";
 
 const SERVICE = "vefaas";
 const API_VERSION = "2024-06-06";
-const HOST = "open.volcengineapi.com";
+const HOST = "open.byteplusapi.com";
 
 // ── Volcengine Signature V4 ──────────────────────────────────────────
 

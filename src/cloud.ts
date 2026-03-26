@@ -10,7 +10,7 @@
  */
 
 export type CloudSandboxConfig = {
-  /** API Gateway base URL, e.g. "https://xxx.apigateway-cn-beijing.volceapi.com" */
+  /** API Gateway base URL, e.g. "https://xxx.apigateway-ap-southeast-1.apigw-byteplus.com" */
   endpoint: string;
   /** VeFaaS sandbox instance ID (faasInstanceName). */
   sandboxId: string;

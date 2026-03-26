@@ -1,14 +1,14 @@
 {
   "id": "byteplus-sandbox",
   "name": "BytePlus Cloud Sandbox",
-  "description": "VeFaaS cloud sandbox backend for OpenClaw agents. Commands run via Volcengine API Gateway HTTP endpoint — no SSH or VPC configuration needed.",
+  "description": "VeFaaS cloud sandbox backend for OpenClaw agents. Commands run via BytePlus API Gateway HTTP endpoint — no SSH or VPC configuration needed.",
   "capabilityTags": ["sandbox"],
   "configSchema": {
     "type": "object",
     "properties": {
       "endpoint": {
         "type": "string",
-        "description": "API Gateway base URL. Example: https://xxx.apigateway-cn-beijing.volceapi.com"
+        "description": "API Gateway base URL. Example: https://xxx.apigateway-ap-southeast-1.apigw-byteplus.com"
       },
       "sandboxId": {
         "type": "string",
@@ -32,7 +32,7 @@
       },
       "region": {
         "type": "string",
-        "description": "Volcengine region for VeFaaS API. Default: cn-beijing."
+        "description": "BytePlus region for VeFaaS API. Default: ap-southeast-1."
       }
     },
     "required": []
@@ -41,12 +41,12 @@
     {
       "name": "BYTEPLUS_ACCESS_KEY_ID",
       "label": "BytePlus Access Key ID",
-      "description": "Volcengine Access Key ID (for auto-create). Also accepts VOLCENGINE_ACCESS_KEY_ID."
+      "description": "BytePlus Access Key ID (for auto-create)."
     },
     {
       "name": "BYTEPLUS_SECRET_ACCESS_KEY",
       "label": "BytePlus Secret Access Key",
-      "description": "Volcengine Secret Access Key (for auto-create). Also accepts VOLCENGINE_SECRET_ACCESS_KEY."
+      "description": "BytePlus Secret Access Key (for auto-create)."
     }
   ]
 }

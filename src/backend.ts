@@ -133,8 +133,8 @@ class VeFaaSBackendImpl {
       if (!creds) {
         throw new Error(
           "BytePlus Sandbox: no sandbox available. " +
-            "Provide config.endpoint + config.sandboxId to connect to an existing sandbox, " +
-            "or config.functionId + BYTEPLUS_ACCESS_KEY_ID + BYTEPLUS_SECRET_ACCESS_KEY to auto-create one.",
+            "Provide endpoint + sandboxId to connect to an existing sandbox, " +
+            "or functionId + BYTEPLUS_ACCESS_KEY_ID + BYTEPLUS_SECRET_ACCESS_KEY to auto-create one.",
         );
       }
       sandboxId = await createVeFaaSSandbox(creds);
@@ -146,8 +146,8 @@ class VeFaaSBackendImpl {
     if (!endpoint) {
       throw new Error(
         "BytePlus Sandbox: config.endpoint is required. " +
-          "Set it to the Volcengine API Gateway URL for your VeFaaS function, e.g. " +
-          '"https://xxx.apigateway-cn-beijing.volceapi.com".',
+          "Set it to the BytePlus API Gateway URL for your VeFaaS function, e.g. " +
+          '"https://xxx.apigateway-ap-southeast-1.apigw-byteplus.com".',
       );
     }
 

@@ -1,26 +1,25 @@
 {
   "name": "openclaw-plugin-byteplus-sandbox",
   "version": "0.1.0",
-  "description": "OpenClaw plugin for BytePlus/Volcengine cloud sandbox backend — provisions and manages cloud container instances for agent code execution.",
+  "description": "OpenClaw plugin for BytePlus cloud sandbox backend — provisions and manages VeFaaS instances for agent code execution.",
   "type": "module",
   "license": "MIT",
   "author": "ByteDance",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nicepkg/openclaw-plugin-byteplus-sandbox.git"
+    "url": "https://github.com/xieyongliang/openclaw-plugin-byteplus-sandbox.git"
   },
-  "homepage": "https://github.com/nicepkg/openclaw-plugin-byteplus-sandbox#readme",
+  "homepage": "https://github.com/xieyongliang/openclaw-plugin-byteplus-sandbox#readme",
   "bugs": {
-    "url": "https://github.com/nicepkg/openclaw-plugin-byteplus-sandbox/issues"
+    "url": "https://github.com/xieyongliang/openclaw-plugin-byteplus-sandbox/issues"
   },
   "keywords": [
     "openclaw",
     "openclaw-plugin",
     "byteplus",
-    "volcengine",
+    "vefaas",
     "sandbox",
     "cloud-sandbox",
-    "ecs",
     "code-execution"
   ],
   "files": [

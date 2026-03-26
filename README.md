@@ -1,14 +1,14 @@
 # openclaw-plugin-byteplus-sandbox
 
-[Volcengine VeFaaS](https://www.volcengine.com/products/vefaas) cloud sandbox backend for [OpenClaw](https://github.com/openclaw/openclaw).
+[BytePlus VeFaaS](https://www.byteplus.com/en/product/vefaas) cloud sandbox backend for [OpenClaw](https://github.com/openclaw/openclaw).
 
-Commands run over HTTP through a Volcengine API Gateway endpoint — **no SSH, no VPC, no security group configuration needed**. Just point it at your API Gateway URL.
+Commands run over HTTP through a BytePlus API Gateway endpoint — **no SSH, no VPC, no security group configuration needed**. Just point it at your API Gateway URL.
 
 ## Requirements
 
 - OpenClaw >= 2026.3.22
-- A Volcengine VeFaaS sandbox instance (pre-existing or auto-created)
-- Volcengine API Gateway endpoint for the VeFaaS function
+- A BytePlus VeFaaS sandbox instance (pre-existing or auto-created)
+- BytePlus API Gateway endpoint for the VeFaaS function
 
 ## Quick Start
 
@@ -23,7 +23,7 @@ Add to `~/.openclaw/openclaw.json`:
     "entries": {
       "byteplus-sandbox": {
         "config": {
-          "endpoint": "https://xxx.apigateway-cn-beijing.volceapi.com",
+          "endpoint": "https://xxx.apigateway-ap-southeast-1.apigw-byteplus.com",
           "sandboxId": "your-vefaas-instance-id"
         }
       }
@@ -56,7 +56,7 @@ export BYTEPLUS_SECRET_ACCESS_KEY=your-sk
     "entries": {
       "byteplus-sandbox": {
         "config": {
-          "endpoint": "https://xxx.apigateway-cn-beijing.volceapi.com",
+          "endpoint": "https://xxx.apigateway-ap-southeast-1.apigw-byteplus.com",
           "functionId": "your-vefaas-function-id",
           "timeoutMin": 60
         }
@@ -84,7 +84,7 @@ Plugin backend (src/backend.ts)
     │
     │  HTTP POST v1/shell/exec
     ▼
-Volcengine API Gateway
+BytePlus API Gateway
     │
     │  routes via faasInstanceName=<sandboxId>
     ▼
@@ -98,29 +98,27 @@ No SSH tunnels, no VMs to manage. The sandbox is a serverless container.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `endpoint` | — | **Required.** API Gateway base URL |
+| `endpoint` | — | **Required.** BytePlus API Gateway base URL |
 | `sandboxId` | auto | VeFaaS instance ID. Omit to auto-create |
 | `workdir` | `/home/gem` | Working directory in sandbox |
 | `token` | — | Bearer token for API Gateway auth |
 | `functionId` | — | VeFaaS function ID (for auto-create) |
 | `timeoutMin` | `60` | Sandbox timeout in minutes |
-| `region` | `cn-beijing` | Volcengine region |
+| `region` | `ap-southeast-1` | BytePlus region |
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `BYTEPLUS_ACCESS_KEY_ID` | Volcengine AK (for auto-create) |
-| `BYTEPLUS_SECRET_ACCESS_KEY` | Volcengine SK (for auto-create) |
-
-Aliases `VOLCENGINE_ACCESS_KEY_ID` / `VOLCENGINE_SECRET_ACCESS_KEY` also work.
+| `BYTEPLUS_ACCESS_KEY_ID` | BytePlus Access Key ID (for auto-create) |
+| `BYTEPLUS_SECRET_ACCESS_KEY` | BytePlus Secret Access Key (for auto-create) |
 
 ## Getting the API Gateway URL
 
-In the Volcengine console:
+In the BytePlus console:
 1. Open **VeFaaS** → your function
 2. Click **API Gateway** or **Trigger configuration**
-3. Copy the endpoint URL
+3. Copy the endpoint URL (format: `https://xxx.apigateway-ap-southeast-1.apigw-byteplus.com`)
 
 ## License
 

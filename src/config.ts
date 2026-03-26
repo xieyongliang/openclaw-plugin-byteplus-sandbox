@@ -8,7 +8,7 @@
  */
 
 export const DEFAULT_CLOUD_WORKDIR = "/home/gem";
-export const DEFAULT_CLOUD_REGION = "cn-beijing";
+export const DEFAULT_CLOUD_REGION = "ap-southeast-1";
 export const DEFAULT_CLOUD_TIMEOUT_MIN = 60;
 export const REGISTRY_PATH_NAME = "byteplus-sandbox-registry.json";
 
@@ -58,13 +58,11 @@ export function resolveConfig(raw: unknown): ResolvedByteplusSandboxConfig {
   const accessKey =
     cfg.accessKey?.trim() ||
     process.env.BYTEPLUS_ACCESS_KEY_ID?.trim() ||
-    process.env.VOLCENGINE_ACCESS_KEY_ID?.trim() ||
     null;
 
   const secretKey =
     cfg.secretKey?.trim() ||
     process.env.BYTEPLUS_SECRET_ACCESS_KEY?.trim() ||
-    process.env.VOLCENGINE_SECRET_ACCESS_KEY?.trim() ||
     null;
 
   return {
