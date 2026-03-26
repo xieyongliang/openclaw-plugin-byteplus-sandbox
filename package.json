@@ -45,6 +45,9 @@
     "install": {
       "npmSpec": "openclaw-plugin-byteplus-sandbox",
       "defaultChoice": "npm"
+    },
+    "compat": {
+      "pluginApi": ">=2026.3.22"
     }
   }
 }
