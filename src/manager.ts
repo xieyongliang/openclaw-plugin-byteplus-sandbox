@@ -1,60 +1,52 @@
 /**
- * BytePlus Volcengine Sandbox backend manager.
+ * SandboxBackendManager for the BytePlus VeFaaS sandbox.
  *
- * Implements SandboxBackendManager for the "byteplus" backend ID.
- * Called by OpenClaw core's `openclaw sandbox` CLI and status commands.
+ * describeRuntime: returns sandbox ID and status info
+ * removeRuntime: kills the VeFaaS sandbox and removes it from the registry
  */
 
 import type {
   SandboxBackendManager,
-  SandboxBackendRuntimeInfo,
+  SandboxRuntimeDescriptor,
 } from "openclaw/plugin-sdk/sandbox";
 import type { ResolvedByteplusSandboxConfig } from "./config.js";
-import { getRegistryEntry, removeRegistryEntry } from "./registry.js";
-import { VolcengineClient } from "./volcengine-client.js";
+import { resolveVeFaaSCredentials } from "./config.js";
+import { deleteRegistryEntry, listRegistryEntries } from "./registry.js";
+import { killVeFaaSSandbox } from "./vefaas-lifecycle.js";
 
-/**
- * Create the SandboxBackendManager for the BytePlus sandbox.
- *
- * Note: `entry.containerName` is used as the `instanceName` key because
- * OpenClaw core's SandboxRegistryEntry stores `containerName` = our
- * `runtimeId` (which we set to the instance name in backend.ts).
- */
 export function createByteplusSandboxManager(
   cfg: ResolvedByteplusSandboxConfig,
 ): SandboxBackendManager {
-  const client = new VolcengineClient(cfg.accessKeyId, cfg.secretAccessKey, cfg.region);
-
   return {
-    async describeRuntime({ entry }): Promise<SandboxBackendRuntimeInfo> {
-      // entry.containerName = our instanceName (used as scopeKey in our registry)
-      const registryEntry = await getRegistryEntry(entry.containerName);
-
-      if (!registryEntry) {
-        return {
-          running: false,
-          actualConfigLabel: undefined,
-          configLabelMatch: false,
-        };
-      }
-
-      const state = await client.describeInstanceState(registryEntry.instanceId).catch(() => "NotFound" as const);
-
+    async describeRuntime(runtimeId: string): Promise<SandboxRuntimeDescriptor | null> {
+      const entries = await listRegistryEntries();
+      const entry = entries.find(
+        (e) => e.sandboxId === runtimeId || `byteplus-${e.sandboxId}` === runtimeId,
+      );
+      if (!entry) return null;
       return {
-        running: state === "Running",
-        actualConfigLabel: registryEntry.image,
-        configLabelMatch: registryEntry.image === cfg.image,
+        id: `byteplus-${entry.sandboxId}`,
+        label: `byteplus/${entry.sandboxId}`,
+        backendId: "byteplus",
+        createdAtMs: entry.createdAtMs,
+        lastUsedAtMs: entry.lastUsedAtMs,
+        configLabel: entry.sandboxId,
+        configLabelKind: "Image" as const,
       };
     },
 
-    async removeRuntime({ entry }): Promise<void> {
-      const registryEntry = await getRegistryEntry(entry.containerName);
-      if (!registryEntry) return;
+    async removeRuntime(runtimeId: string): Promise<void> {
+      const entries = await listRegistryEntries();
+      const entry = entries.find(
+        (e) => e.sandboxId === runtimeId || `byteplus-${e.sandboxId}` === runtimeId,
+      );
+      if (!entry) return;
 
-      await client.deleteInstance(registryEntry.instanceId).catch(() => {
-        // Best-effort deletion — log but don't throw
-      });
-      await removeRegistryEntry(entry.containerName);
+      const creds = resolveVeFaaSCredentials(cfg);
+      if (creds) {
+        await killVeFaaSSandbox(creds, entry.sandboxId);
+      }
+      await deleteRegistryEntry(entry.scopeKey);
     },
   };
 }

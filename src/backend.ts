@@ -1,306 +1,285 @@
 /**
- * BytePlus Volcengine Sandbox backend implementation.
+ * BytePlus VeFaaS cloud sandbox backend implementation.
  *
- * Lifecycle pattern inspired by openclaw-dev/src/agents/sandbox/docker.ts:
- * - Idempotent ensureInstance() with configHash comparison
- * - Cached promise to coalesce concurrent ensure calls
+ * Uses HTTP REST through Volcengine API Gateway — no SSH needed.
+ * Mirrors openclaw-dev/src/agents/sandbox/context.ts cloud path.
  *
- * SSH execution pattern follows extensions/openshell/src/backend.ts.
+ * Lifecycle:
+ *   1. If config has endpoint + sandboxId → connect directly
+ *   2. If config has functionId + credentials → auto-create VeFaaS sandbox
+ *   3. Registry persists sandboxId across restarts so the same instance is reused
  */
 
-import crypto from "node:crypto";
 import type {
   CreateSandboxBackendParams,
   SandboxBackendCommandParams,
   SandboxBackendCommandResult,
   SandboxBackendFactory,
   SandboxBackendHandle,
-  SshSandboxSession,
-} from "openclaw/plugin-sdk/sandbox";
-import {
-  buildExecRemoteCommand,
-  buildRemoteCommand,
-  createRemoteShellSandboxFsBridge,
-  createSshSandboxSessionFromSettings,
-  disposeSshSandboxSession,
-  runSshSandboxCommand,
 } from "openclaw/plugin-sdk/sandbox";
 import type { ResolvedByteplusSandboxConfig } from "./config.js";
-import { maybePruneSandboxes } from "./prune.js";
+import { resolveVeFaaSCredentials } from "./config.js";
+import type { CloudSandboxConfig } from "./cloud.js";
+import { cloudExec, cloudExecRaw, ensureCloudSandboxReady } from "./cloud.js";
+import { createCloudSandboxFsBridge } from "./cloud-fs-bridge.js";
 import {
+  deleteRegistryEntry,
   getRegistryEntry,
   touchRegistryEntry,
   upsertRegistryEntry,
 } from "./registry.js";
-import { autoSetup } from "./setup.js";
-import type { SandboxNetworkSetup } from "./setup.js";
-import type { SshEndpoint } from "./volcengine-client.js";
-import { VolcengineClient } from "./volcengine-client.js";
+import { createVeFaaSSandbox, killVeFaaSSandbox } from "./vefaas-lifecycle.js";
 
-// ---- Helpers -----------------------------------------------------------------
-
-type PendingExec = { sshSession: SshSandboxSession };
-
-/**
- * Derive a deterministic, short instance name from a scopeKey.
- * Volcengine ECS instance names: max 128 chars, alphanumeric + hyphens.
- */
-export function buildInstanceName(prefix: string, scopeKey: string): string {
-  const hash = crypto.createHash("sha1").update(scopeKey).digest("hex").slice(0, 10);
-  return `${prefix}-${hash}`;
-}
-
-/** Stable config hash used to detect stale instances (image change). */
-function buildConfigHash(cfg: ResolvedByteplusSandboxConfig): string {
-  return crypto
-    .createHash("sha1")
-    .update(`${cfg.image}|${cfg.instanceType}|${cfg.region}`)
-    .digest("hex")
-    .slice(0, 12);
-}
-
-// ---- Factory -----------------------------------------------------------------
+// ── Factory ────────────────────────────────────────────────────────────
 
 export function createByteplusSandboxFactory(
   cfg: ResolvedByteplusSandboxConfig,
 ): SandboxBackendFactory {
-  return async (params: CreateSandboxBackendParams) =>
-    createByteplusSandboxHandle(cfg, params);
+  return async (params: CreateSandboxBackendParams) => createByteplusSandboxHandle(cfg, params);
 }
 
-// ---- Handle implementation ---------------------------------------------------
+// ── Handle ─────────────────────────────────────────────────────────────
 
 async function createByteplusSandboxHandle(
   cfg: ResolvedByteplusSandboxConfig,
   createParams: CreateSandboxBackendParams,
 ): Promise<SandboxBackendHandle> {
-  const impl = new BPSandboxImpl(cfg, createParams);
-  await impl.ensureInstance(); // Provision instance early so SSH is ready by first tool call
+  const impl = new VeFaaSBackendImpl(cfg, createParams);
+  await impl.ensureReady();
+
+  const cloudCfg = impl.cloudConfig;
 
   return {
     id: "byteplus",
-    runtimeId: impl.instanceName,
-    runtimeLabel: impl.instanceName,
-    workdir: cfg.remoteWorkspaceDir,
-    configLabel: cfg.image,
-    configLabelKind: "Image",
+    runtimeId: `byteplus-${cloudCfg.sandboxId}`,
+    runtimeLabel: `byteplus/${cloudCfg.sandboxId}`,
+    workdir: cfg.workdir,
+    configLabel: `${cfg.endpoint ?? "auto"} / ${cloudCfg.sandboxId}`,
+    configLabelKind: "Image" as const,
 
-    buildExecSpec: async ({ command, workdir, env, usePty }) => {
-      const pending = await impl.prepareExec({ command, workdir, env, usePty });
+    /**
+     * buildExecSpec: returns a node --eval command that proxies the shell command
+     * through the API Gateway HTTP endpoint. Not streaming, but functional.
+     */
+    buildExecSpec: async ({ command, workdir, env }) => {
+      const execPayload = buildInlineExecScript(cloudCfg, command, workdir, env);
       return {
-        argv: pending.argv,
+        argv: ["node", "--input-type=module", "--eval", execPayload],
         env: process.env as NodeJS.ProcessEnv,
         stdinMode: "pipe-open" as const,
-        finalizeToken: pending.token,
+        finalizeToken: undefined,
       };
     },
 
-    finalizeExec: async ({ token }) => {
-      await impl.finalizeExec(token as PendingExec | undefined);
-    },
+    finalizeExec: async () => {},
 
     runShellCommand: async (params) => impl.runShellCommand(params),
 
-    createFsBridge: ({ sandbox }) =>
-      createRemoteShellSandboxFsBridge({
-        sandbox,
-        runtime: {
-          remoteWorkspaceDir: cfg.remoteWorkspaceDir,
-          remoteAgentWorkspaceDir: `${cfg.remoteWorkspaceDir}/.agent`,
-          runRemoteShellScript: async (p) => impl.runShellCommand(p),
-        },
-      }),
+    createFsBridge: () =>
+      createCloudSandboxFsBridge({
+        cloud: cloudCfg,
+        workspaceDir: cfg.workdir,
+        containerWorkdir: cfg.workdir,
+      }) as Parameters<SandboxBackendHandle["createFsBridge"]>[0] extends object
+        ? ReturnType<SandboxBackendHandle["createFsBridge"]>
+        : never,
   };
 }
 
-// ---- Implementation class ----------------------------------------------------
+// ── Implementation class ───────────────────────────────────────────────
 
-class BPSandboxImpl {
-  readonly instanceName: string;
-  private readonly configHash: string;
-  private readonly client: VolcengineClient;
-  private ensurePromise: Promise<SshEndpoint> | null = null;
-  private sshEndpoint: SshEndpoint | null = null;
-  /** Resolved after first ensureInstance() call — contains VPC/subnet/SG/key data. */
-  private networkSetup: SandboxNetworkSetup | null = null;
+class VeFaaSBackendImpl {
+  private _cloudConfig: CloudSandboxConfig | null = null;
+  private ensurePromise: Promise<void> | null = null;
 
   constructor(
     private readonly cfg: ResolvedByteplusSandboxConfig,
     private readonly createParams: CreateSandboxBackendParams,
-  ) {
-    this.instanceName = buildInstanceName(cfg.containerPrefix, createParams.scopeKey);
-    this.configHash = buildConfigHash(cfg);
-    this.client = new VolcengineClient(cfg.accessKeyId, cfg.secretAccessKey, cfg.region);
+  ) {}
+
+  get cloudConfig(): CloudSandboxConfig {
+    if (!this._cloudConfig) throw new Error("VeFaaS backend not initialized — call ensureReady()");
+    return this._cloudConfig;
   }
 
-  async ensureInstance(): Promise<SshEndpoint> {
+  async ensureReady(): Promise<void> {
     if (this.ensurePromise) return this.ensurePromise;
-    this.ensurePromise = this.ensureInstanceInner().catch((err) => {
+    this.ensurePromise = this.ensureReadyInner().catch((err) => {
       this.ensurePromise = null;
       throw err;
     });
     return this.ensurePromise;
   }
 
-  private async ensureInstanceInner(): Promise<SshEndpoint> {
-    // Auto-provision VPC/subnet/security group/SSH key pair on first use.
-    // Mirrors how openclaw-dev's Docker sandbox requires only `image` and
-    // handles environment setup automatically.
-    this.networkSetup = await autoSetup(this.cfg);
+  private async ensureReadyInner(): Promise<void> {
+    const scopeKey = this.createParams.scopeKey;
 
-    // Opportunistic prune of idle/old instances (debounced to every 5 min)
-    await maybePruneSandboxes(this.client, {
-      idleHours: this.cfg.idleHours,
-      maxAgeDays: this.cfg.maxAgeDays,
-    });
+    // -- Step 1: resolve endpoint + sandboxId --------------------------------
 
-    const existing = await getRegistryEntry(this.instanceName);
+    let endpoint = this.cfg.endpoint;
+    let sandboxId = this.cfg.sandboxId;
 
-    if (existing) {
-      // Check if the image/config changed — if so, recreate
-      if (existing.configHash !== this.configHash) {
-        await this.deleteInstance(existing.instanceId);
-        await upsertRegistryEntry({
-          scopeKey: this.instanceName,
-          instanceId: "",
-          image: this.cfg.image,
-          configHash: this.configHash,
-          createdAtMs: Date.now(),
-          lastUsedAtMs: Date.now(),
-        });
-      } else {
-        // Try to reuse existing instance
-        const state = await this.client.describeInstanceState(existing.instanceId);
-        if (state === "Running") {
-          await touchRegistryEntry(this.instanceName);
-          const endpoint = await this.client.getSshEndpoint(existing.instanceId);
-          this.sshEndpoint = endpoint;
-          return endpoint;
-        }
-        if (state === "Stopped") {
-          await this.client.startInstance(existing.instanceId);
-          const endpoint = await this.client.waitForRunning(
-            existing.instanceId,
-            this.cfg.timeoutSeconds,
-          );
-          await touchRegistryEntry(this.instanceName);
-          this.sshEndpoint = endpoint;
-          return endpoint;
-        }
-        // Starting/Stopping — wait for it
-        if (state === "Starting" || state === "Stopping") {
-          const endpoint = await this.client.waitForRunning(
-            existing.instanceId,
-            this.cfg.timeoutSeconds,
-          );
-          await touchRegistryEntry(this.instanceName);
-          this.sshEndpoint = endpoint;
-          return endpoint;
-        }
-        // NotFound — fall through to create
+    if (!sandboxId) {
+      // Check registry first (persist across restarts)
+      const cached = await getRegistryEntry(scopeKey);
+      if (cached) {
+        sandboxId = cached.sandboxId;
       }
     }
 
-    // Create a new instance using auto-resolved network config
-    const net = this.networkSetup;
-    const instanceId = await this.client.createInstance({
-      instanceName: this.instanceName,
-      image: this.cfg.image,
-      instanceType: this.cfg.instanceType,
-      vpcId: net.vpcId,
-      subnetId: net.subnetId,
-      securityGroupId: net.securityGroupId,
-      keyPairName: net.keyPairName,
-    });
+    if (!sandboxId) {
+      // Auto-create via VeFaaS API
+      const creds = resolveVeFaaSCredentials(this.cfg);
+      if (!creds) {
+        throw new Error(
+          "BytePlus Sandbox: no sandbox available. " +
+            "Provide config.endpoint + config.sandboxId to connect to an existing sandbox, " +
+            "or config.functionId + BYTEPLUS_ACCESS_KEY_ID + BYTEPLUS_SECRET_ACCESS_KEY to auto-create one.",
+        );
+      }
+      sandboxId = await createVeFaaSSandbox(creds);
 
+      // Register auto-created sandbox for cleanup on exit
+      registerCleanup(this.cfg, sandboxId);
+    }
+
+    if (!endpoint) {
+      throw new Error(
+        "BytePlus Sandbox: config.endpoint is required. " +
+          "Set it to the Volcengine API Gateway URL for your VeFaaS function, e.g. " +
+          '"https://xxx.apigateway-cn-beijing.volceapi.com".',
+      );
+    }
+
+    // Persist to registry
     await upsertRegistryEntry({
-      scopeKey: this.instanceName,
-      instanceId,
-      image: this.cfg.image,
-      configHash: this.configHash,
+      scopeKey,
+      sandboxId,
       createdAtMs: Date.now(),
       lastUsedAtMs: Date.now(),
     });
 
-    const endpoint = await this.client.waitForRunning(instanceId, this.cfg.timeoutSeconds);
-    this.sshEndpoint = endpoint;
-    return endpoint;
-  }
+    // -- Step 2: build CloudSandboxConfig ------------------------------------
 
-  private async deleteInstance(instanceId: string): Promise<void> {
-    try {
-      await this.client.deleteInstance(instanceId);
-    } catch {
-      // Best-effort deletion; continue even if it fails
-    }
-  }
-
-  private async createSshSession(): Promise<SshSandboxSession> {
-    const endpoint = this.sshEndpoint ?? (await this.ensureInstance());
-    // sshPrivateKey is always available after ensureInstance() has run (via networkSetup)
-    const privateKey = this.networkSetup?.sshPrivateKey ?? this.cfg.sshPrivateKey ?? "";
-    return createSshSandboxSessionFromSettings({
-      command: "ssh",
-      target: `${this.cfg.sshUser}@${endpoint.host}`,
-      strictHostKeyChecking: false,
-      updateHostKeys: false,
-      identityData: privateKey,
-    });
-  }
-
-  async prepareExec(params: {
-    command: string;
-    workdir?: string;
-    env: Record<string, string>;
-    usePty: boolean;
-  }): Promise<{ argv: string[]; token: PendingExec }> {
-    await this.ensureInstance();
-    const sshSession = await this.createSshSession();
-    const remoteCommand = buildExecRemoteCommand({
-      command: params.command,
-      workdir: params.workdir ?? this.cfg.remoteWorkspaceDir,
-      env: params.env,
-    });
-    return {
-      argv: [
-        "ssh",
-        "-F",
-        sshSession.configPath,
-        ...(params.usePty
-          ? ["-tt", "-o", "RequestTTY=force", "-o", "SetEnv=TERM=xterm-256color"]
-          : ["-T", "-o", "RequestTTY=no"]),
-        sshSession.host,
-        remoteCommand,
-      ],
-      token: { sshSession },
+    this._cloudConfig = {
+      endpoint,
+      sandboxId,
+      workdir: this.cfg.workdir,
+      token: this.cfg.token ?? undefined,
     };
-  }
 
-  async finalizeExec(token?: PendingExec): Promise<void> {
-    if (token?.sshSession) {
-      await disposeSshSandboxSession(token.sshSession);
-    }
+    // -- Step 3: verify sandbox is reachable --------------------------------
+
+    await ensureCloudSandboxReady(this._cloudConfig);
+    await touchRegistryEntry(scopeKey);
   }
 
   async runShellCommand(params: SandboxBackendCommandParams): Promise<SandboxBackendCommandResult> {
-    await this.ensureInstance();
-    const session = await this.createSshSession();
+    await this.ensureReady();
+    const cfg = this.cloudConfig;
+
     try {
-      return await runSshSandboxCommand({
-        session,
-        remoteCommand: buildRemoteCommand([
-          "/bin/sh",
-          "-c",
-          params.script,
-          "openclaw-byteplus-sandbox",
-          ...(params.args ?? []),
-        ]),
+      const result = await cloudExecRaw({
+        config: cfg,
+        script: params.script,
+        args: params.args,
         stdin: params.stdin,
         allowFailure: params.allowFailure,
         signal: params.signal,
       });
-    } finally {
-      await disposeSshSandboxSession(session);
+      return {
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.code,
+      };
+    } catch (err) {
+      if (params.allowFailure) {
+        return {
+          stdout: Buffer.alloc(0),
+          stderr: Buffer.from(String(err)),
+          exitCode: 1,
+        };
+      }
+      throw err;
     }
   }
+}
+
+// ── buildExecSpec inline script ────────────────────────────────────────
+
+/**
+ * Build an inline Node.js module script that calls cloudExec over HTTP and
+ * writes the output to process.stdout, then exits with the command exit code.
+ *
+ * This is used by `buildExecSpec` so the core can spawn it as a child process.
+ * Output is batch (not streaming), but functional for non-PTY commands.
+ */
+function buildInlineExecScript(
+  cloud: CloudSandboxConfig,
+  command: string,
+  workdir: string | undefined,
+  env: Record<string, string>,
+): string {
+  const envStr = Object.entries(env ?? {})
+    .map(([k, v]) => `export ${JSON.stringify(k)}=${JSON.stringify(v)}`)
+    .join("; ");
+  const fullCmd = envStr ? `${envStr}; ${command}` : command;
+
+  const payload = JSON.stringify({
+    endpoint: cloud.endpoint,
+    sandboxId: cloud.sandboxId,
+    token: cloud.token ?? null,
+    command: fullCmd,
+    workdir: workdir ?? cloud.workdir,
+  });
+
+  return `
+const { endpoint, sandboxId, token, command, workdir } = ${payload};
+const base = endpoint.replace(/\\/+$/, "");
+const url = new URL(base + "/v1/shell/exec");
+url.searchParams.set("faasInstanceName", sandboxId);
+const headers = { "Content-Type": "application/json" };
+if (token) headers["Authorization"] = "Bearer " + token;
+const body = JSON.stringify({ command: "cd " + JSON.stringify(workdir) + " && " + command, timeout: 300 });
+const r = await fetch(url.toString(), { method: "POST", headers, body });
+if (!r.ok) {
+  process.stderr.write("HTTP " + r.status + "\\n");
+  process.exit(1);
+}
+const j = await r.json();
+if (!j.success) {
+  process.stderr.write(j.message || "exec failed");
+  process.exit(1);
+}
+if (j.data?.output) process.stdout.write(j.data.output);
+process.exit(j.data?.exit_code ?? 0);
+`.trim();
+}
+
+// ── Process-exit cleanup ───────────────────────────────────────────────
+
+type CleanupEntry = { cfg: ResolvedByteplusSandboxConfig; sandboxId: string };
+const pendingCleanups: CleanupEntry[] = [];
+let cleanupRegistered = false;
+
+function registerCleanup(cfg: ResolvedByteplusSandboxConfig, sandboxId: string): void {
+  pendingCleanups.push({ cfg, sandboxId });
+  if (cleanupRegistered) return;
+  cleanupRegistered = true;
+
+  const runCleanup = () => {
+    const creds = resolveVeFaaSCredentials(cfg);
+    if (!creds) return;
+    for (const item of pendingCleanups) {
+      const itemCreds = resolveVeFaaSCredentials(item.cfg);
+      if (itemCreds) {
+        killVeFaaSSandbox(itemCreds, item.sandboxId).catch(() => {});
+        deleteRegistryEntry(item.sandboxId).catch(() => {});
+      }
+    }
+  };
+
+  process.on("beforeExit", runCleanup);
+  process.on("SIGINT", () => { runCleanup(); process.exit(130); });
+  process.on("SIGTERM", () => { runCleanup(); process.exit(143); });
 }

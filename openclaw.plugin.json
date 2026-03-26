@@ -1,66 +1,38 @@
 {
   "id": "byteplus-sandbox",
   "name": "BytePlus Cloud Sandbox",
-  "description": "On-demand Volcengine ECS cloud sandbox backend for OpenClaw agents. Automatically provisions VPC, security group, and SSH key pair on first use — only `image` is required.",
+  "description": "VeFaaS cloud sandbox backend for OpenClaw agents. Commands run via Volcengine API Gateway HTTP endpoint — no SSH or VPC configuration needed.",
   "capabilityTags": ["sandbox"],
   "configSchema": {
     "type": "object",
     "properties": {
-      "image": {
+      "endpoint": {
         "type": "string",
-        "description": "Container image to run (e.g. cr.volces.com/my-org/sandbox:latest). Defaults to cr.volces.com/openclaw/sandbox:latest."
+        "description": "API Gateway base URL. Example: https://xxx.apigateway-cn-beijing.volceapi.com"
+      },
+      "sandboxId": {
+        "type": "string",
+        "description": "VeFaaS sandbox instance ID (faasInstanceName). Omit to auto-create using functionId + credentials."
+      },
+      "workdir": {
+        "type": "string",
+        "description": "Working directory inside the sandbox. Default: /home/gem"
+      },
+      "token": {
+        "type": "string",
+        "description": "Optional Bearer token for API Gateway authentication."
+      },
+      "functionId": {
+        "type": "string",
+        "description": "VeFaaS function ID for auto-creating sandbox instances."
+      },
+      "timeoutMin": {
+        "type": "number",
+        "description": "Sandbox instance timeout in minutes. Default: 60."
       },
       "region": {
         "type": "string",
-        "description": "Volcengine region. Default: cn-beijing."
-      },
-      "instanceType": {
-        "type": "string",
-        "description": "ECS instance type. Default: ecs.c3i.large."
-      },
-      "remoteWorkspaceDir": {
-        "type": "string",
-        "description": "Working directory inside the instance. Default: /workspace."
-      },
-      "sshUser": {
-        "type": "string",
-        "description": "SSH login user. Default: root."
-      },
-      "containerPrefix": {
-        "type": "string",
-        "description": "Prefix for ECS instance names. Default: openclaw-sbx-."
-      },
-      "timeoutSeconds": {
-        "type": "number",
-        "description": "Seconds to wait for instance startup. Default: 180."
-      },
-      "idleHours": {
-        "type": "number",
-        "description": "Delete instances idle for this many hours. Default: 24. Set 0 to disable."
-      },
-      "maxAgeDays": {
-        "type": "number",
-        "description": "Delete instances older than this many days. Default: 7. Set 0 to disable."
-      },
-      "vpcId": {
-        "type": "string",
-        "description": "Optional: pre-existing VPC ID. If omitted, auto-detected or created on first use."
-      },
-      "subnetId": {
-        "type": "string",
-        "description": "Optional: pre-existing subnet ID. If omitted, auto-detected or created on first use."
-      },
-      "securityGroupId": {
-        "type": "string",
-        "description": "Optional: pre-existing security group ID. If omitted, auto-created with SSH inbound rule."
-      },
-      "keyPairName": {
-        "type": "string",
-        "description": "Optional: pre-existing key pair name registered in Volcengine. If omitted, auto-generated."
-      },
-      "sshPrivateKey": {
-        "type": "string",
-        "description": "Optional: PEM private key string for SSH. If omitted, auto-generated and cached locally."
+        "description": "Volcengine region for VeFaaS API. Default: cn-beijing."
       }
     },
     "required": []
@@ -69,12 +41,12 @@
     {
       "name": "BYTEPLUS_ACCESS_KEY_ID",
       "label": "BytePlus Access Key ID",
-      "description": "Volcengine Access Key ID. Also accepts VOLCENGINE_ACCESS_KEY_ID."
+      "description": "Volcengine Access Key ID (for auto-create). Also accepts VOLCENGINE_ACCESS_KEY_ID."
     },
     {
       "name": "BYTEPLUS_SECRET_ACCESS_KEY",
       "label": "BytePlus Secret Access Key",
-      "description": "Volcengine Secret Access Key. Also accepts VOLCENGINE_SECRET_ACCESS_KEY."
+      "description": "Volcengine Secret Access Key (for auto-create). Also accepts VOLCENGINE_SECRET_ACCESS_KEY."
     }
   ]
 }
