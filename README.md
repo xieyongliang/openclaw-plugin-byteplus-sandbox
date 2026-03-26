@@ -1,51 +1,40 @@
 # openclaw-plugin-byteplus-sandbox
 
-OpenClaw plugin that provides a **Volcengine (BytePlus) cloud sandbox backend** for agent code execution.
+On-demand [Volcengine ECS](https://www.volcengine.com/products/ecs) cloud sandbox backend for [OpenClaw](https://github.com/openclaw/openclaw).
 
-Agents using this plugin run code inside on-demand Volcengine ECS instances, connected via SSH. Instances are provisioned automatically on first use, reused across sessions, and pruned after configurable idle / age limits.
+Designed to work like OpenClaw's local Docker sandbox — **just set your image and credentials, and the plugin handles the rest**. On first use, it automatically provisions a VPC, subnet, security group (with SSH inbound), and SSH key pair. Subsequent runs reuse or restart the same instance.
 
 ## Requirements
 
-- [OpenClaw](https://github.com/openclaw/openclaw) >= 2026.3.22
-- A [Volcengine](https://www.volcengine.com/) account with ECS access
-- A pre-configured VPC, subnet, security group (inbound SSH on port 22), and key pair
+- OpenClaw >= 2026.3.22
+- Volcengine account with ECS + VPC API access
+- Credentials: `BYTEPLUS_ACCESS_KEY_ID` and `BYTEPLUS_SECRET_ACCESS_KEY` environment variables
 
-## Installation
+## Quick Start
+
+### 1. Install the plugin
 
 ```bash
 openclaw plugins install openclaw-plugin-byteplus-sandbox
 ```
 
-Or link a local development copy:
+### 2. Set credentials
 
 ```bash
-openclaw plugins install --link /path/to/openclaw-plugin-byteplus-sandbox
+export BYTEPLUS_ACCESS_KEY_ID=your-ak
+export BYTEPLUS_SECRET_ACCESS_KEY=your-sk
 ```
 
-## Configuration
+Or add them to `~/.profile` / `~/.zshrc` for persistence.
 
-Add to your `openclaw.json`:
+### 3. Configure OpenClaw
+
+Add to your `~/.openclaw/openclaw.json`:
 
 ```json
 {
   "plugins": {
-    "allow": ["byteplus-sandbox"],
-    "entries": {
-      "byteplus-sandbox": {
-        "config": {
-          "accessKeyId": "AK...",
-          "secretAccessKey": "SK...",
-          "region": "cn-beijing",
-          "image": "cr.volces.com/my-org/sandbox:latest",
-          "instanceType": "ecs.c3i.large",
-          "vpcId": "vpc-xxx",
-          "subnetId": "subnet-xxx",
-          "securityGroupId": "sg-xxx",
-          "keyPairName": "my-keypair",
-          "sshPrivateKey": "-----BEGIN RSA PRIVATE KEY-----\n..."
-        }
-      }
-    }
+    "allow": ["byteplus-sandbox"]
   },
   "agents": {
     "defaults": {
@@ -58,47 +47,94 @@ Add to your `openclaw.json`:
 }
 ```
 
-Alternatively, set credentials via environment variables:
+That's it. No VPC ID, no subnet, no security group, no SSH keys to manage.
 
-```bash
-export BYTEPLUS_ACCESS_KEY_ID=AK...
-export BYTEPLUS_SECRET_ACCESS_KEY=SK...
+### 4. (Optional) Specify a custom image
+
+```json
+{
+  "plugins": {
+    "allow": ["byteplus-sandbox"],
+    "entries": {
+      "byteplus-sandbox": {
+        "config": {
+          "image": "cr.volces.com/my-org/sandbox:latest"
+        }
+      }
+    }
+  }
+}
 ```
+
+## How It Works
+
+On first use, the plugin automatically:
+
+1. **Finds or creates a VPC** — uses the account's default VPC, or creates `openclaw-sandbox-vpc`
+2. **Finds or creates a subnet** — reuses existing subnet in the VPC, or creates `openclaw-sandbox-subnet`
+3. **Creates a security group** — `openclaw-sandbox` with inbound SSH (port 22) rule
+4. **Generates an SSH key pair** — creates an RSA-2048 key, imports the public key to Volcengine as `openclaw-sandbox-key`, stores the private key at `~/.openclaw/byteplus-sandbox-key.pem`
+
+All results are cached in `~/.openclaw/byteplus-sandbox-setup.json`. Subsequent calls skip auto-setup.
+
+Instance lifecycle:
+- **Create** — on first sandbox request for a scope key
+- **Reuse** — if the same instance is Running or Stopped (auto-started)
+- **Recreate** — if the `image` or `instanceType` changes (detected via config hash)
+- **Prune** — idle instances (default: 24h) and old instances (default: 7 days) are cleaned up automatically
 
 ## Configuration Reference
 
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `accessKeyId` | ✅ | — | Volcengine Access Key ID |
-| `secretAccessKey` | ✅ | — | Volcengine Secret Access Key |
-| `image` | ✅ | — | Container/AMI image ID or name |
-| `vpcId` | ✅ | — | VPC ID |
-| `subnetId` | ✅ | — | Subnet ID |
-| `securityGroupId` | ✅ | — | Security group ID (must allow SSH inbound) |
-| `keyPairName` | ✅ | — | Pre-created ECS key pair name |
-| `sshPrivateKey` | ✅ | — | PEM private key matching keyPairName |
-| `region` | | `cn-beijing` | Volcengine region |
-| `instanceType` | | `ecs.c3i.large` | ECS instance type |
-| `sshUser` | | `root` | SSH login user |
-| `remoteWorkspaceDir` | | `/workspace` | Workspace directory on the instance |
-| `containerPrefix` | | `openclaw-sandbox` | Prefix for ECS instance names |
-| `timeoutSeconds` | | `180` | Instance startup timeout |
-| `idleHours` | | `2` | Auto-delete idle instances after N hours (0 = off) |
-| `maxAgeDays` | | `7` | Auto-delete instances older than N days (0 = off) |
+All fields are optional (credentials come from environment variables):
 
-## How it works
+| Field | Default | Description |
+|-------|---------|-------------|
+| `image` | `cr.volces.com/openclaw/sandbox:latest` | Container image to run |
+| `region` | `cn-beijing` | Volcengine region |
+| `instanceType` | `ecs.c3i.large` | ECS instance type |
+| `remoteWorkspaceDir` | `/workspace` | Working directory in instance |
+| `sshUser` | `root` | SSH login user |
+| `containerPrefix` | `openclaw-sbx-` | Prefix for instance names |
+| `timeoutSeconds` | `180` | Startup wait timeout |
+| `idleHours` | `24` | Prune after idle hours (0 = off) |
+| `maxAgeDays` | `7` | Prune after max age (0 = off) |
+| `vpcId` | auto | Override: skip auto-detect VPC |
+| `subnetId` | auto | Override: skip auto-detect subnet |
+| `securityGroupId` | auto | Override: skip auto-create security group |
+| `keyPairName` | auto | Override: use existing key pair |
+| `sshPrivateKey` | auto | Override: provide SSH private key directly |
 
-1. **First use**: The plugin provisions a new Volcengine ECS instance using `RunInstances` API.
-2. **Instance naming**: Instance name is derived from a hash of the `scopeKey` (workspace + session context), prefixed with `containerPrefix`.
-3. **Reuse**: On subsequent calls, the existing instance is reused (or restarted if stopped).
-4. **Config change detection**: If the image or instance type changes, the old instance is deleted and a new one is created.
-5. **SSH execution**: Commands run over SSH using OpenClaw's `runSshSandboxCommand` infrastructure.
-6. **File bridge**: File operations use `createRemoteShellSandboxFsBridge` (remote-shell mode, no local mirroring).
-7. **Pruning**: Stale instances (idle or too old) are automatically cleaned up.
+## Environment Variables
 
-## Instance registry
+| Variable | Description |
+|----------|-------------|
+| `BYTEPLUS_ACCESS_KEY_ID` | Volcengine Access Key ID |
+| `BYTEPLUS_SECRET_ACCESS_KEY` | Volcengine Secret Access Key |
 
-The plugin maintains a local registry at `~/.openclaw/byteplus-sandbox-registry.json` that maps instance names to Volcengine instance IDs. This file is local to each machine.
+Aliases `VOLCENGINE_ACCESS_KEY_ID` / `VOLCENGINE_SECRET_ACCESS_KEY` are also accepted.
+
+## Advanced: Skip Auto-Setup
+
+If you have existing cloud resources and want to skip auto-provisioning entirely, provide all five override fields:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "byteplus-sandbox": {
+        "config": {
+          "image": "cr.volces.com/my-org/sandbox:latest",
+          "vpcId": "vpc-xxx",
+          "subnetId": "subnet-xxx",
+          "securityGroupId": "sg-xxx",
+          "keyPairName": "my-key",
+          "sshPrivateKey": "-----BEGIN PRIVATE KEY-----\n..."
+        }
+      }
+    }
+  }
+}
+```
 
 ## License
 

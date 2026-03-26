@@ -32,6 +32,8 @@ import {
   touchRegistryEntry,
   upsertRegistryEntry,
 } from "./registry.js";
+import { autoSetup } from "./setup.js";
+import type { SandboxNetworkSetup } from "./setup.js";
 import type { SshEndpoint } from "./volcengine-client.js";
 import { VolcengineClient } from "./volcengine-client.js";
 
@@ -119,6 +121,8 @@ class BPSandboxImpl {
   private readonly client: VolcengineClient;
   private ensurePromise: Promise<SshEndpoint> | null = null;
   private sshEndpoint: SshEndpoint | null = null;
+  /** Resolved after first ensureInstance() call — contains VPC/subnet/SG/key data. */
+  private networkSetup: SandboxNetworkSetup | null = null;
 
   constructor(
     private readonly cfg: ResolvedByteplusSandboxConfig,
@@ -139,6 +143,11 @@ class BPSandboxImpl {
   }
 
   private async ensureInstanceInner(): Promise<SshEndpoint> {
+    // Auto-provision VPC/subnet/security group/SSH key pair on first use.
+    // Mirrors how openclaw-dev's Docker sandbox requires only `image` and
+    // handles environment setup automatically.
+    this.networkSetup = await autoSetup(this.cfg);
+
     // Opportunistic prune of idle/old instances (debounced to every 5 min)
     await maybePruneSandboxes(this.client, {
       idleHours: this.cfg.idleHours,
@@ -152,7 +161,7 @@ class BPSandboxImpl {
       if (existing.configHash !== this.configHash) {
         await this.deleteInstance(existing.instanceId);
         await upsertRegistryEntry({
-          scopeKey: this.instanceName, // use instanceName as our key (matches core containerName)
+          scopeKey: this.instanceName,
           instanceId: "",
           image: this.cfg.image,
           configHash: this.configHash,
@@ -192,15 +201,16 @@ class BPSandboxImpl {
       }
     }
 
-    // Create a new instance
+    // Create a new instance using auto-resolved network config
+    const net = this.networkSetup;
     const instanceId = await this.client.createInstance({
       instanceName: this.instanceName,
       image: this.cfg.image,
       instanceType: this.cfg.instanceType,
-      vpcId: this.cfg.vpcId,
-      subnetId: this.cfg.subnetId,
-      securityGroupId: this.cfg.securityGroupId,
-      keyPairName: this.cfg.keyPairName,
+      vpcId: net.vpcId,
+      subnetId: net.subnetId,
+      securityGroupId: net.securityGroupId,
+      keyPairName: net.keyPairName,
     });
 
     await upsertRegistryEntry({
@@ -227,12 +237,14 @@ class BPSandboxImpl {
 
   private async createSshSession(): Promise<SshSandboxSession> {
     const endpoint = this.sshEndpoint ?? (await this.ensureInstance());
+    // sshPrivateKey is always available after ensureInstance() has run (via networkSetup)
+    const privateKey = this.networkSetup?.sshPrivateKey ?? this.cfg.sshPrivateKey ?? "";
     return createSshSandboxSessionFromSettings({
       command: "ssh",
       target: `${this.cfg.sshUser}@${endpoint.host}`,
       strictHostKeyChecking: false,
       updateHostKeys: false,
-      identityData: this.cfg.sshPrivateKey,
+      identityData: privateKey,
     });
   }
 

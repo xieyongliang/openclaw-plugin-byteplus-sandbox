@@ -1,84 +1,80 @@
 {
   "id": "byteplus-sandbox",
-  "name": "BytePlus Volcengine Sandbox",
-  "description": "Volcengine cloud container sandbox backend for OpenClaw agents. Provisions ECS instances, connects via SSH, and mirrors the workspace for secure code execution.",
+  "name": "BytePlus Cloud Sandbox",
+  "description": "On-demand Volcengine ECS cloud sandbox backend for OpenClaw agents. Automatically provisions VPC, security group, and SSH key pair on first use — only `image` is required.",
   "capabilityTags": ["sandbox"],
   "configSchema": {
     "type": "object",
     "properties": {
-      "accessKeyId": {
+      "image": {
         "type": "string",
-        "description": "Volcengine Access Key ID"
-      },
-      "secretAccessKey": {
-        "type": "string",
-        "description": "Volcengine Secret Access Key"
+        "description": "Container image to run (e.g. cr.volces.com/my-org/sandbox:latest). Defaults to cr.volces.com/openclaw/sandbox:latest."
       },
       "region": {
         "type": "string",
-        "default": "cn-beijing",
-        "description": "Volcengine region (e.g. cn-beijing, cn-shanghai)"
-      },
-      "image": {
-        "type": "string",
-        "description": "Container/AMI image ID or name for sandbox instances (e.g. cr.volces.com/my-org/sandbox:latest)"
+        "description": "Volcengine region. Default: cn-beijing."
       },
       "instanceType": {
         "type": "string",
-        "default": "ecs.c3i.large",
-        "description": "ECS instance type"
-      },
-      "vpcId": {
-        "type": "string",
-        "description": "VPC ID for the sandbox instance (required for ECS)"
-      },
-      "subnetId": {
-        "type": "string",
-        "description": "Subnet ID for the sandbox instance (required for ECS)"
-      },
-      "securityGroupId": {
-        "type": "string",
-        "description": "Security group ID (must allow inbound SSH on port 22)"
-      },
-      "keyPairName": {
-        "type": "string",
-        "description": "Pre-created ECS key pair name; public key must be registered in Volcengine console"
-      },
-      "sshPrivateKey": {
-        "type": "string",
-        "description": "PEM-encoded private key matching keyPairName, used for SSH authentication"
-      },
-      "sshUser": {
-        "type": "string",
-        "default": "root",
-        "description": "SSH login user inside the sandbox instance"
+        "description": "ECS instance type. Default: ecs.c3i.large."
       },
       "remoteWorkspaceDir": {
         "type": "string",
-        "default": "/workspace",
-        "description": "Remote workspace directory path on the sandbox instance"
+        "description": "Working directory inside the instance. Default: /workspace."
+      },
+      "sshUser": {
+        "type": "string",
+        "description": "SSH login user. Default: root."
       },
       "containerPrefix": {
         "type": "string",
-        "default": "openclaw-sandbox",
-        "description": "Prefix for instance names created by this plugin"
+        "description": "Prefix for ECS instance names. Default: openclaw-sbx-."
       },
       "timeoutSeconds": {
         "type": "number",
-        "default": 180,
-        "description": "Timeout in seconds for instance creation to reach Running state"
+        "description": "Seconds to wait for instance startup. Default: 180."
       },
       "idleHours": {
         "type": "number",
-        "default": 2,
-        "description": "Delete instances idle for this many hours (0 = disabled)"
+        "description": "Delete instances idle for this many hours. Default: 24. Set 0 to disable."
       },
       "maxAgeDays": {
         "type": "number",
-        "default": 7,
-        "description": "Delete instances older than this many days (0 = disabled)"
+        "description": "Delete instances older than this many days. Default: 7. Set 0 to disable."
+      },
+      "vpcId": {
+        "type": "string",
+        "description": "Optional: pre-existing VPC ID. If omitted, auto-detected or created on first use."
+      },
+      "subnetId": {
+        "type": "string",
+        "description": "Optional: pre-existing subnet ID. If omitted, auto-detected or created on first use."
+      },
+      "securityGroupId": {
+        "type": "string",
+        "description": "Optional: pre-existing security group ID. If omitted, auto-created with SSH inbound rule."
+      },
+      "keyPairName": {
+        "type": "string",
+        "description": "Optional: pre-existing key pair name registered in Volcengine. If omitted, auto-generated."
+      },
+      "sshPrivateKey": {
+        "type": "string",
+        "description": "Optional: PEM private key string for SSH. If omitted, auto-generated and cached locally."
       }
     },
-    "required": ["accessKeyId", "secretAccessKey", "image", "vpcId", "subnetId", "securityGroupId", "keyPairName", "sshPrivateKey"]
-  }
+    "required": []
+  },
+  "providerAuthEnvVars": [
+    {
+      "name": "BYTEPLUS_ACCESS_KEY_ID",
+      "label": "BytePlus Access Key ID",
+      "description": "Volcengine Access Key ID. Also accepts VOLCENGINE_ACCESS_KEY_ID."
+    },
+    {
+      "name": "BYTEPLUS_SECRET_ACCESS_KEY",
+      "label": "BytePlus Secret Access Key",
+      "description": "Volcengine Secret Access Key. Also accepts VOLCENGINE_SECRET_ACCESS_KEY."
+    }
+  ]
 }
