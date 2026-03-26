@@ -1,52 +1,72 @@
 /**
  * SandboxBackendManager for the BytePlus VeFaaS sandbox.
  *
- * describeRuntime: returns sandbox ID and status info
- * removeRuntime: kills the VeFaaS sandbox and removes it from the registry
+ * Core passes a SandboxRegistryEntry where:
+ *   entry.containerName = our runtimeId ("byteplus-<sandboxId>")
+ *   entry.image         = our configLabel (endpoint / sandboxId)
+ *
+ * SandboxRegistryEntry is an internal core type not exported by plugin-sdk,
+ * so we let TypeScript infer it from the SandboxBackendManager interface.
  */
 
 import type {
+  OpenClawConfig,
   SandboxBackendManager,
-  SandboxRuntimeDescriptor,
+  SandboxBackendRuntimeInfo,
 } from "openclaw/plugin-sdk/sandbox";
 import type { ResolvedByteplusSandboxConfig } from "./config.js";
 import { resolveVeFaaSCredentials } from "./config.js";
-import { deleteRegistryEntry, listRegistryEntries } from "./registry.js";
+import { ensureCloudSandboxReady, type CloudSandboxConfig } from "./cloud.js";
 import { killVeFaaSSandbox } from "./vefaas-lifecycle.js";
+
+/** Extract sandboxId from runtimeId "byteplus-<sandboxId>" */
+function extractSandboxId(containerName: string): string | null {
+  const prefix = "byteplus-";
+  return containerName.startsWith(prefix) ? containerName.slice(prefix.length) : null;
+}
 
 export function createByteplusSandboxManager(
   cfg: ResolvedByteplusSandboxConfig,
 ): SandboxBackendManager {
   return {
-    async describeRuntime(runtimeId: string): Promise<SandboxRuntimeDescriptor | null> {
-      const entries = await listRegistryEntries();
-      const entry = entries.find(
-        (e) => e.sandboxId === runtimeId || `byteplus-${e.sandboxId}` === runtimeId,
-      );
-      if (!entry) return null;
-      return {
-        id: `byteplus-${entry.sandboxId}`,
-        label: `byteplus/${entry.sandboxId}`,
-        backendId: "byteplus",
-        createdAtMs: entry.createdAtMs,
-        lastUsedAtMs: entry.lastUsedAtMs,
-        configLabel: entry.sandboxId,
-        configLabelKind: "Image" as const,
+    async describeRuntime(params): Promise<SandboxBackendRuntimeInfo> {
+      const { entry } = params as { entry: { containerName: string; image: string }; config: OpenClawConfig };
+      const sandboxId = extractSandboxId(entry.containerName);
+
+      if (!sandboxId || !cfg.endpoint) {
+        return { running: false, actualConfigLabel: entry.image, configLabelMatch: false };
+      }
+
+      const cloudCfg: CloudSandboxConfig = {
+        endpoint: cfg.endpoint,
+        sandboxId,
+        workdir: cfg.workdir,
+        token: cfg.token,
       };
+
+      const expectedLabel = `${cfg.endpoint} / ${sandboxId}`;
+
+      try {
+        await ensureCloudSandboxReady(cloudCfg, AbortSignal.timeout(10_000));
+        return {
+          running: true,
+          actualConfigLabel: expectedLabel,
+          configLabelMatch: entry.image === expectedLabel,
+        };
+      } catch {
+        return { running: false, actualConfigLabel: expectedLabel, configLabelMatch: false };
+      }
     },
 
-    async removeRuntime(runtimeId: string): Promise<void> {
-      const entries = await listRegistryEntries();
-      const entry = entries.find(
-        (e) => e.sandboxId === runtimeId || `byteplus-${e.sandboxId}` === runtimeId,
-      );
-      if (!entry) return;
+    async removeRuntime(params): Promise<void> {
+      const { entry } = params as { entry: { containerName: string }; config: OpenClawConfig };
+      const sandboxId = extractSandboxId(entry.containerName);
+      if (!sandboxId) return;
 
       const creds = resolveVeFaaSCredentials(cfg);
       if (creds) {
-        await killVeFaaSSandbox(creds, entry.sandboxId);
+        await killVeFaaSSandbox(creds, sandboxId);
       }
-      await deleteRegistryEntry(entry.scopeKey);
     },
   };
 }

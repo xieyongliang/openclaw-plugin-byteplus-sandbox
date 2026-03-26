@@ -16,6 +16,7 @@ import type {
   SandboxBackendCommandResult,
   SandboxBackendFactory,
   SandboxBackendHandle,
+  SandboxFsBridge,
 } from "openclaw/plugin-sdk/sandbox";
 import type { ResolvedByteplusSandboxConfig } from "./config.js";
 import { resolveVeFaaSCredentials } from "./config.js";
@@ -71,18 +72,21 @@ async function createByteplusSandboxHandle(
       };
     },
 
-    finalizeExec: async () => {},
+    finalizeExec: async (_params: {
+      status: "completed" | "failed";
+      exitCode: number | null;
+      timedOut: boolean;
+      token?: unknown;
+    }) => {},
 
     runShellCommand: async (params) => impl.runShellCommand(params),
 
-    createFsBridge: () =>
+    createFsBridge: (): SandboxFsBridge =>
       createCloudSandboxFsBridge({
         cloud: cloudCfg,
         workspaceDir: cfg.workdir,
         containerWorkdir: cfg.workdir,
-      }) as Parameters<SandboxBackendHandle["createFsBridge"]>[0] extends object
-        ? ReturnType<SandboxBackendHandle["createFsBridge"]>
-        : never,
+      }) as SandboxFsBridge,
   };
 }
 
