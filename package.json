@@ -48,6 +48,9 @@
     },
     "compat": {
       "pluginApi": ">=2026.3.22"
+    },
+    "build": {
+      "openclawVersion": "2026.3.24"
     }
   }
 }
