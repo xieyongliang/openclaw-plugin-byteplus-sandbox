@@ -30,6 +30,7 @@ import {
   upsertRegistryEntry,
 } from "./registry.js";
 import { createVeFaaSSandbox, killVeFaaSSandbox } from "./vefaas-lifecycle.js";
+import { buildMinimalNodeEnv } from "./env-helpers.js";
 
 // ── Factory ────────────────────────────────────────────────────────────
 
@@ -64,17 +65,9 @@ async function createByteplusSandboxHandle(
      */
     buildExecSpec: async ({ command, workdir, env }) => {
       const execPayload = buildInlineExecScript(cloudCfg, command, workdir, env);
-      // Pass only the minimal env vars needed to run a Node.js child process.
-      // Deliberately avoids forwarding the full process.env to prevent leaking
-      // credentials or other secrets into the sandboxed exec context.
-      const minimalEnv: NodeJS.ProcessEnv = {
-        PATH: process.env.PATH,
-        HOME: process.env.HOME,
-        NODE_PATH: process.env.NODE_PATH,
-      };
       return {
         argv: ["node", "--input-type=module", "--eval", execPayload],
-        env: minimalEnv,
+        env: buildMinimalNodeEnv(),
         stdinMode: "pipe-open" as const,
         finalizeToken: undefined,
       };
