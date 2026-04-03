@@ -1,7 +1,7 @@
 {
-  "name": "openclaw-plugin-byteplus-sandbox",
+  "name": "byteplus-sandbox-plugin",
   "version": "0.1.0",
-  "description": "OpenClaw plugin for BytePlus cloud sandbox backend — provisions and manages VeFaaS instances for agent code execution.",
+  "description": "OpenClaw plugin for BytePlus cloud sandbox backend \u2014 provisions and manages VeFaaS instances for agent code execution.",
   "type": "module",
   "license": "MIT",
   "author": "ByteDance",
@@ -43,7 +43,7 @@
       "./index.ts"
     ],
     "install": {
-      "npmSpec": "openclaw-plugin-byteplus-sandbox",
+      "npmSpec": "byteplus-sandbox-plugin",
       "defaultChoice": "npm"
     },
     "compat": {

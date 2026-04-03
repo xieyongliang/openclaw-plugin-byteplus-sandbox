@@ -36,14 +36,6 @@
         "type": "string",
         "description": "BytePlus region for VeFaaS API. Default: ap-southeast-1."
       },
-      "accessKey": {
-        "type": "string",
-        "description": "BytePlus Access Key ID for VeFaaS auto-create/kill. Fallback: BYTEPLUS_ACCESS_KEY_ID env var."
-      },
-      "secretKey": {
-        "type": "string",
-        "description": "BytePlus Secret Access Key. Fallback: BYTEPLUS_SECRET_ACCESS_KEY env var."
-      }
     },
     "required": []
   },
@@ -54,18 +46,6 @@
     ]
   },
   "uiHints": {
-    "accessKey": {
-      "label": "BytePlus Access Key ID",
-      "help": "BytePlus Access Key ID for VeFaaS sandbox auto-create/kill. Fallback: BYTEPLUS_ACCESS_KEY_ID env var.",
-      "sensitive": true,
-      "placeholder": "your-access-key-id"
-    },
-    "secretKey": {
-      "label": "BytePlus Secret Access Key",
-      "help": "BytePlus Secret Access Key. Fallback: BYTEPLUS_SECRET_ACCESS_KEY env var.",
-      "sensitive": true,
-      "placeholder": "your-secret-access-key"
-    },
     "endpoint": {
       "label": "API Gateway Endpoint",
       "help": "BytePlus API Gateway URL. Example: https://xxx.apigateway-ap-southeast-1.apigw-byteplus.com"
