@@ -35,7 +35,7 @@
       "region": {
         "type": "string",
         "description": "BytePlus region for VeFaaS API. Default: ap-southeast-1."
-      },
+      }
     },
     "required": []
   },
