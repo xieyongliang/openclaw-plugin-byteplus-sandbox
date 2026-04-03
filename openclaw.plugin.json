@@ -1,8 +1,10 @@
 {
   "id": "byteplus-sandbox",
   "name": "BytePlus Cloud Sandbox",
-  "description": "VeFaaS cloud sandbox backend for OpenClaw agents. Commands run via BytePlus API Gateway HTTP endpoint — no SSH or VPC configuration needed.",
-  "capabilityTags": ["sandbox"],
+  "description": "VeFaaS cloud sandbox backend for OpenClaw agents. Commands run via BytePlus API Gateway HTTP endpoint \u2014 no SSH or VPC configuration needed.",
+  "capabilityTags": [
+    "sandbox"
+  ],
   "configSchema": {
     "type": "object",
     "properties": {
@@ -33,20 +35,48 @@
       "region": {
         "type": "string",
         "description": "BytePlus region for VeFaaS API. Default: ap-southeast-1."
+      },
+      "accessKey": {
+        "type": "string",
+        "description": "BytePlus Access Key ID for VeFaaS auto-create/kill. Fallback: BYTEPLUS_ACCESS_KEY_ID env var."
+      },
+      "secretKey": {
+        "type": "string",
+        "description": "BytePlus Secret Access Key. Fallback: BYTEPLUS_SECRET_ACCESS_KEY env var."
       }
     },
     "required": []
   },
-  "providerAuthEnvVars": [
-    {
-      "name": "BYTEPLUS_ACCESS_KEY_ID",
+  "providerAuthEnvVars": {
+    "byteplus-sandbox": [
+      "BYTEPLUS_ACCESS_KEY_ID",
+      "BYTEPLUS_SECRET_ACCESS_KEY"
+    ]
+  },
+  "uiHints": {
+    "accessKey": {
       "label": "BytePlus Access Key ID",
-      "description": "BytePlus Access Key ID (for auto-create)."
+      "help": "BytePlus Access Key ID for VeFaaS sandbox auto-create/kill. Fallback: BYTEPLUS_ACCESS_KEY_ID env var.",
+      "sensitive": true,
+      "placeholder": "your-access-key-id"
     },
-    {
-      "name": "BYTEPLUS_SECRET_ACCESS_KEY",
+    "secretKey": {
       "label": "BytePlus Secret Access Key",
-      "description": "BytePlus Secret Access Key (for auto-create)."
+      "help": "BytePlus Secret Access Key. Fallback: BYTEPLUS_SECRET_ACCESS_KEY env var.",
+      "sensitive": true,
+      "placeholder": "your-secret-access-key"
+    },
+    "endpoint": {
+      "label": "API Gateway Endpoint",
+      "help": "BytePlus API Gateway URL. Example: https://xxx.apigateway-ap-southeast-1.apigw-byteplus.com"
+    },
+    "functionId": {
+      "label": "VeFaaS Function ID",
+      "help": "VeFaaS function ID for auto-creating sandbox instances."
+    },
+    "region": {
+      "label": "Region",
+      "help": "BytePlus region for VeFaaS API. Default: ap-southeast-1."
     }
-  ]
+  }
 }
