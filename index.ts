@@ -5,7 +5,7 @@ import { createByteplusSandboxManager } from "./src/manager.js";
 import { resolveConfig } from "./src/config.js";
 
 export default definePluginEntry({
-  id: "byteplus-sandbox",
+  id: "@xieyongliang/byteplus-sandbox",
   setup(api: OpenClawPluginApi) {
     const cfg = resolveConfig(api.getPluginConfig?.() ?? {});
 

@@ -1,6 +1,6 @@
 {
-  "name": "byteplus-sandbox-plugin",
-  "version": "0.1.0",
+  "name": "xieyongliang-byteplus-sandbox",
+  "version": "2026.4.1",
   "description": "OpenClaw plugin for BytePlus cloud sandbox backend \u2014 provisions and manages VeFaaS instances for agent code execution.",
   "type": "module",
   "license": "MIT",

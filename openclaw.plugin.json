@@ -1,5 +1,5 @@
 {
-  "id": "byteplus-sandbox",
+  "id": "@xieyongliang/byteplus-sandbox",
   "name": "BytePlus Cloud Sandbox",
   "description": "VeFaaS cloud sandbox backend for OpenClaw agents. Commands run via BytePlus API Gateway HTTP endpoint \u2014 no SSH or VPC configuration needed.",
   "capabilityTags": [

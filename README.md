@@ -13,7 +13,7 @@ Commands run over HTTP through a BytePlus API Gateway endpoint — **no SSH, no 
 ## Installation
 
 ```bash
-openclaw plugins install byteplus-sandbox-plugin
+openclaw plugins install xieyongliang-byteplus-sandbox
 ```
 
 ## Configuration
@@ -42,23 +42,23 @@ Use `openclaw config set` to configure the endpoint and (optionally) the VeFaaS 
 
 ```bash
 # API Gateway endpoint (required)
-openclaw config set plugins.entries.byteplus-sandbox.config.endpoint \
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.endpoint \
   "https://xxx.apigateway-ap-southeast-1.apigw-byteplus.com"
 
 # VeFaaS function ID — needed for auto-create mode (see below)
-openclaw config set plugins.entries.byteplus-sandbox.config.functionId "your-function-id"
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.functionId "your-function-id"
 
 # Optional: pre-existing sandbox instance ID (skips auto-create)
-openclaw config set plugins.entries.byteplus-sandbox.config.sandboxId "your-instance-id"
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.sandboxId "your-instance-id"
 
 # Optional: working directory inside the sandbox (default: /home/gem)
-openclaw config set plugins.entries.byteplus-sandbox.config.workdir "/home/gem"
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.workdir "/home/gem"
 
 # Optional: sandbox timeout in minutes (default: 60)
-openclaw config set plugins.entries.byteplus-sandbox.config.timeoutMin 60
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.timeoutMin 60
 
 # Optional: BytePlus region (default: ap-southeast-1)
-openclaw config set plugins.entries.byteplus-sandbox.config.region "ap-southeast-1"
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.region "ap-southeast-1"
 ```
 
 ### Step 3 — Enable sandbox in agent defaults
@@ -73,8 +73,8 @@ openclaw config set agents.defaults.sandbox.backend byteplus
 ```bash
 export BYTEPLUS_ACCESS_KEY_ID=your-ak
 export BYTEPLUS_SECRET_ACCESS_KEY=your-sk
-openclaw config set plugins.entries.byteplus-sandbox.config.endpoint "https://xxx.apigateway-..."
-openclaw config set plugins.entries.byteplus-sandbox.config.sandboxId "your-instance-id"
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.endpoint "https://xxx.apigateway-..."
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.sandboxId "your-instance-id"
 openclaw config set agents.defaults.sandbox.mode all
 openclaw config set agents.defaults.sandbox.backend byteplus
 ```
@@ -86,8 +86,8 @@ Omit `sandboxId` and provide `functionId` instead. The plugin will call `CreateS
 ```bash
 export BYTEPLUS_ACCESS_KEY_ID=your-ak
 export BYTEPLUS_SECRET_ACCESS_KEY=your-sk
-openclaw config set plugins.entries.byteplus-sandbox.config.endpoint "https://xxx.apigateway-..."
-openclaw config set plugins.entries.byteplus-sandbox.config.functionId "your-function-id"
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.endpoint "https://xxx.apigateway-..."
+openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.functionId "your-function-id"
 openclaw config set agents.defaults.sandbox.mode all
 openclaw config set agents.defaults.sandbox.backend byteplus
 ```
@@ -115,7 +115,7 @@ No SSH tunnels, no VMs to manage. The sandbox is a serverless container.
 
 ## Configuration Reference
 
-### Plugin config keys (`plugins.entries.byteplus-sandbox.config.*`)
+### Plugin config keys (`plugins.entries.@xieyongliang/byteplus-sandbox.config.*`)
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -127,7 +127,7 @@ No SSH tunnels, no VMs to manage. The sandbox is a serverless container.
 | `timeoutMin` | `60` | Sandbox timeout in minutes |
 | `region` | `ap-southeast-1` | BytePlus region for VeFaaS API |
 
-Set any key with: `openclaw config set plugins.entries.byteplus-sandbox.config.<key> <value>`
+Set any key with: `openclaw config set plugins.entries.@xieyongliang/byteplus-sandbox.config.<key> <value>`
 
 ### Credentials (environment variables only)
 
